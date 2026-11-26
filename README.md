@@ -93,13 +93,23 @@ both RPCs raise `Not authenticated` when called without a session.
 
 `supabase/backfill/hair-xlsx-fittings.sql` loads the history from `HAIR.xlsx` (column A = date,
 B `Y` removed, C `Y` re-fitted, D `Y` new system) as 48 sessions: 6 new systems, 42 re-fits, the
-last one still open. It runs as four numbered steps — run STEP 0 to see the account ids, then
-replace the three `<<< OWNER >>>` placeholders with yours and run the rest.
+last one still open, from 20 Jan 2025 to 2 Oct 2026. Five sessions keep a genuine one- or two-day
+gap because the sheet records the removal and the re-fit on different dates.
 
-Every step reports its own row count, so a step that writes nothing says so (`DELETE 0`, 0 rows
-returned) instead of passing silently. It is deliberately not a migration — it writes one person's
-history, so it should not ship with `supabase db push`. It only ever replaces rows it created
-(`comments = 'Backfilled from HAIR.xlsx'`), so re-running after correcting a date is safe.
+Paste it into the SQL editor of the project in `.env.local` and run it — the account is already
+baked in (`dave.brown04@live.com`, `759cae52-…`), there is nothing to edit. Five statements: a
+read-only overview, that account and what it currently holds, a delete of the account's fittings
+(with `RETURNING`, so you see exactly what went), the 48-row insert (also `RETURNING`, so a silent
+no-op is impossible), and a totals query that should say 48 / 6 / 42 / 1.
+
+It clears *all* of the account's fittings before inserting, because the sheet is the complete
+record. That is also what resolves the one-open-session collision the table enforces:
+`hair_fittings_one_open_idx` allows a single open session per person, so a session logged in the app
+blocks the sheet's open 2 Oct 2026 row (`23505 duplicate key`). Costs and settings are never
+touched, and running the whole thing twice still leaves 48 rows.
+
+It is deliberately not a migration — it writes one person's history, so it should not ship with
+`supabase db push`.
 
 
 ## Scripts

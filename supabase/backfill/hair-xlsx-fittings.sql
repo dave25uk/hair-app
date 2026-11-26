@@ -1,17 +1,31 @@
 -- =============================================================================
--- Back-fill fittings from HAIR.xlsx
+-- Back-fill fittings from HAIR.xlsx   —   nothing to edit, just run it
 --
--- Column A = date, B = 'Y' system removed, C = 'Y' system re-fitted,
--- D = 'Y' new system installed. One row per event, oldest first.
+--   1. Open  https://supabase.com/dashboard/project/qysscushyrhgrodlpovg/sql/new
+--   2. Clear the editor (Ctrl+A, Delete), paste this whole file.
+--   3. Press Run. Read the results in the order below.
 --
--- Run the steps in order. Each one reports what it did, so a step that writes
--- nothing is visible in the results pane instead of failing quietly:
+--   STEP 0  one row: which database, how many accounts, how many fittings.
+--   STEP 1  one row: the account being filled, and what it already holds.
+--   STEP 2  clears that account's fittings ("DELETE n" plus the n rows it
+--           removed, so you can see exactly what was replaced).
+--   STEP 3  48 rows — the history, one row per fitting.
+--   STEP 4  one row of totals: 48 fittings, 6 new systems, 42 re-fits, 1 open.
 --
---   STEP 0  read-only: every account, and how many fittings it already holds.
---   STEP 1  replace <<< OWNER >>> (3 places) with an owner_id from step 0.
---   STEP 2  delete rows a previous run created          -> "DELETE 0"
---   STEP 3  insert the 48 sessions                      -> 48 rows returned
---   STEP 4  totals: 48 fittings, 6 new systems, 1 open  -> one row
+-- STEP 2 removes *every* fitting on the account, not just ones this script made,
+-- because the spreadsheet is the complete record from 20 Jan 2025. Anything
+-- already in the app is replaced by it — including the open session that made an
+-- earlier attempt fail with hair_fittings_one_open_idx (the table only allows one
+-- open session per person, and the sheet's last row is also open). Costs and
+-- settings are not touched, and STEP 2 runs again cleanly on a second attempt
+-- (it will report "DELETE 48" then).
+--
+-- The account: dave.brown04@live.com, id 759cae52-53f0-4896-ac90-51b42a105d3e.
+-- That id appears in the four places marked <<< ACCOUNT >>>; find/replace it to
+-- fill a different account.
+--
+-- Column A of the sheet = date, B = 'Y' system removed, C = 'Y' system
+-- re-fitted, D = 'Y' new system installed. One row per event, oldest first.
 --
 -- How the sheet was converted
 --   * B=Y closes the session that is currently on, on that date.
@@ -19,6 +33,9 @@
 --   * Most rows have B and C/D together: off and back on the same day, so the
 --     old session ends and the new one starts on that date. That is one wear
 --     day, not a gap — the same thing the app does when you log a fitting.
+--   * Five sessions do have a genuine gap, because the sheet puts the removal
+--     and the re-fit on different dates (off 7 Aug, back on 9 Aug 2025; and
+--     four one-day gaps). Those are kept as gaps, not smoothed over.
 --   * Row 2 marks a removal with nothing on before it (the record starts
 --     there), so it is ignored.
 --   * The last row leaves its session open, which is what the app reads as
@@ -29,14 +46,21 @@
 -- =============================================================================
 
 -- ---------------------------------------------------------------------------
--- STEP 0 — read-only. Every auth account, with what it already holds. The
--- account you sign in with should show all_rows = 0; if it shows rows, those
--- are fittings logged in the app and they need deleting before a back-fill
--- (see the note at the bottom).
+-- STEP 0 — read-only sanity check. "fittings = 0" means the table really is
+-- empty; if it isn't 0, someone already has history in here.
+-- ---------------------------------------------------------------------------
+select current_database()                                     as database,
+       (select count(*) from auth.users)                       as accounts,
+       (select count(*) from public.hair_fittings)             as fittings,
+       (select count(*) from public.hair_fittings
+         where removed_on is null)                             as open_sessions;
+
+-- ---------------------------------------------------------------------------
+-- STEP 1 — read-only. The account being filled and what it currently holds.
+-- open_rows = 1 is the row that blocked the previous attempt.
 -- ---------------------------------------------------------------------------
 select u.id                as owner_id,
        u.email,
-       u.is_anonymous,
        u.created_at,
        u.last_sign_in_at,
        count(f.id)                                                         as all_rows,
@@ -44,24 +68,24 @@ select u.id                as owner_id,
        count(f.id) filter (where f.removed_on is null)                     as open_rows
 from auth.users as u
 left join public.hair_fittings as f on f.user_id = u.id
-group by u.id, u.email, u.is_anonymous, u.created_at, u.last_sign_in_at
-order by u.created_at;
+where u.id = '759cae52-53f0-4896-ac90-51b42a105d3e'::uuid  -- <<< ACCOUNT >>>
+group by u.id, u.email, u.created_at, u.last_sign_in_at;
 
 -- ---------------------------------------------------------------------------
--- STEP 1 — replace all three  <<< OWNER >>>  placeholders with the owner_id
--- you want to fill. Leaving one unreplaced fails loudly (invalid uuid).
+-- STEP 2 — clears the account's fittings so the spreadsheet can replace them.
+-- It shows what it removed; "DELETE 0" means there was nothing there.
 -- ---------------------------------------------------------------------------
-
--- STEP 2 — clears rows a previous run of this script created, so re-running
--- after fixing a date is safe. Expect "DELETE 0" the first time.
 delete from public.hair_fittings
- where user_id = '<<< OWNER >>>'::uuid
-   and comments = 'Backfilled from HAIR.xlsx';
+ where user_id = '759cae52-53f0-4896-ac90-51b42a105d3e'::uuid  -- <<< ACCOUNT >>>
+returning kind, fitted_on, removed_on, comments;
 
--- STEP 3 — the 53 dated sheet rows become 48 sessions. The results pane should
+-- ---------------------------------------------------------------------------
+-- STEP 3 — the 53 dated sheet rows become 48 sessions. The results pane must
 -- come back with 48 rows; anything less means nothing was written.
+-- ---------------------------------------------------------------------------
 insert into public.hair_fittings (user_id, kind, fitted_on, removed_on, comments)
-select '<<< OWNER >>>'::uuid, s.kind, s.fitted_on, s.removed_on, 'Backfilled from HAIR.xlsx'
+select '759cae52-53f0-4896-ac90-51b42a105d3e'::uuid,  -- <<< ACCOUNT >>>
+       s.kind, s.fitted_on, s.removed_on, 'Backfilled from HAIR.xlsx'
 from (values
     ('new-system', date '2025-01-20', date '2025-02-02'),
     ('refit',      date '2025-02-02', date '2025-02-12'),
@@ -126,16 +150,13 @@ select count(*)                                            as fittings,
        max(fitted_on)                                       as last_fitted,
        count(*) filter (where comments = 'Backfilled from HAIR.xlsx') as backfilled
 from public.hair_fittings
-where user_id = '<<< OWNER >>>'::uuid;
+where user_id = '759cae52-53f0-4896-ac90-51b42a105d3e'::uuid;  -- <<< ACCOUNT >>>
 
 -- ---------------------------------------------------------------------------
--- If step 0 showed rows for the account you are filling (all_rows > 0), those
--- came from logging fittings in the app. Deal with them before running step 3,
--- otherwise the history interleaves or the one-open-session index rejects the
--- insert. Either delete them in the app, or clear the whole account with:
---
---   delete from public.hair_fittings where user_id = '<your owner id>'::uuid;
---
+-- Nothing else to do. Reload the app (Ctrl+Shift+R once, so the service worker
+-- doesn't serve its cached copy) and the fittings page should show 48 sessions
+-- from 20 Jan 2025, with the 2 Oct 2026 re-fit still on.
 -- ---------------------------------------------------------------------------
+
 
 
