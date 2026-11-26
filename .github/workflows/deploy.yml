@@ -29,6 +29,16 @@ jobs:
 
       - run: npm test
 
+      # Fail loudly if a secret is missing, instead of happily deploying the
+      # "Almost there" setup screen to the live site.
+      - name: Check Supabase secrets exist
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        run: |
+          [ -n "$VITE_SUPABASE_URL" ] || { echo "::error::Missing repo secret VITE_SUPABASE_URL"; exit 1; }
+          [ -n "$VITE_SUPABASE_ANON_KEY" ] || { echo "::error::Missing repo secret VITE_SUPABASE_ANON_KEY"; exit 1; }
+
       - run: npm run build
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
@@ -38,9 +48,12 @@ jobs:
       # if anything ever requests a real path.
       - run: cp dist/index.html dist/404.html
 
-      - uses: actions/configure-pages@v5
+      # Pages must be switched on once in Settings -> Pages -> Source:
+      # "GitHub Actions". The action's `enablement: true` option cannot do it
+      # here because it requires a PAT, not the default GITHUB_TOKEN.
+      - uses: actions/configure-pages@v6
 
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: dist
 
@@ -52,4 +65,4 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5

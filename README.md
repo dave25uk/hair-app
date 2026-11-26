@@ -99,7 +99,20 @@ Add both values as repository secrets before the first run:
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_ANON_KEY`
 
-Then set *Settings → Pages → Source* to **GitHub Actions**.
+Pages requires the repository to be **public** on a free account: GitHub only serves Pages from
+private repositories on Pro/Team/Enterprise, and until that is satisfied *Settings → Pages* shows
+"Upgrade or make this repository public to enable Pages" with no source selector, while the API
+returns 404 and the run fails at `configure-pages` with *Get Pages site failed*. The same limitation
+is why the workflow does not use that action's `enablement: true`: it needs a personal access token,
+not the default `GITHUB_TOKEN`.
+
+1. Make the repository public: *Settings → General → Danger zone → Change visibility*.
+2. Add the two secrets above: *Settings → Secrets and variables → Actions*.
+3. Set *Settings → Pages → Source* to **GitHub Actions**.
+4. Push to `main`, or re-run the workflow.
+
+A step before the build checks that both secrets are present, so a missing one fails the run with a
+named error instead of quietly publishing the "Almost there" setup screen.
 
 ## Notes
 
