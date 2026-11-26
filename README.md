@@ -1,6 +1,6 @@
 # Hair Tracker
 
-A small, personal PWA for tracking hair-system fittings, re-fits and what they cost. It works out
+A small and personal PWA for tracking hair-system fittings, re-fits and what they cost. It works out
 when the next replacement needs ordering, keeps a running cost picture, and stays readable offline.
 There is no sign-in screen.
 
