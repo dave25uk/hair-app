@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { SessionProvider, useSession } from './state/SessionContext'
+import { AuthProvider, useAuth } from './state/AuthContext'
 import { AppDataProvider } from './state/AppDataContext'
 import { hasSupabaseConfig } from './lib/supabase'
+import AuthPage from './pages/AuthPage'
 import HomePage from './pages/HomePage'
 import FittingsPage from './pages/FittingsPage'
 import CostsPage from './pages/CostsPage'
@@ -77,37 +78,34 @@ function AppShell() {
   )
 }
 
-function SessionGate() {
-  const { session, loading, error, canStartFresh, retry, startFresh } = useSession()
+function AuthGate() {
+  const { session, loading, error, retry } = useAuth()
 
   if (loading) {
     return (
       <div className="centre-screen">
-        <Spinner label="Opening your data" />
+        <Spinner label="Checking your session" />
       </div>
     )
   }
 
-  if (error || !session) {
+  if (error) {
     return (
       <div className="centre-screen">
         <div className="card setup-card">
-          <h1>Can't open the app</h1>
-          <p>{error ?? 'No session could be started on this device.'}</p>
+          <h1>Can't check your session</h1>
+          <p>{error}</p>
           <div className="row-actions">
             <button type="button" className="button button--primary" onClick={retry}>
               Try again
             </button>
-            {canStartFresh && (
-              <button type="button" className="button button--ghost" onClick={startFresh}>
-                Start a new record
-              </button>
-            )}
           </div>
         </div>
       </div>
     )
   }
+
+  if (!session) return <AuthPage />
 
   return (
     <AppDataProvider>
@@ -143,8 +141,8 @@ export default function App() {
   if (!hasSupabaseConfig) return <SetupScreen />
 
   return (
-    <SessionProvider>
-      <SessionGate />
-    </SessionProvider>
+    <AuthProvider>
+      <AuthGate />
+    </AuthProvider>
   )
 }

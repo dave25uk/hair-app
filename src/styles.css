@@ -1229,6 +1229,54 @@ dialog.modal::backdrop {
   overflow-x: auto;
 }
 
+.auth-card {
+  width: 100%;
+  max-width: 400px;
+  gap: 1rem;
+}
+
+.auth-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.auth-mark {
+  border-radius: 9px;
+}
+
+.auth-brand-name {
+  font-family: var(--font-display);
+  font-size: 1.02rem;
+}
+
+.auth-intro {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.auth-card h1 {
+  font-family: var(--font-display);
+  font-size: 1.45rem;
+  line-height: 1.15;
+}
+
+.auth-intro p {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--ink-soft);
+}
+
+.auth-footnote {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  text-align: center;
+  color: var(--ink-soft);
+}
+
 .spinner {
   display: flex;
   align-items: center;

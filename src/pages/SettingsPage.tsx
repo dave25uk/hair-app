@@ -1,10 +1,10 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useAppData } from '../state/AppDataContext'
-import { useSession } from '../state/SessionContext'
+import { useAuth } from '../state/AuthContext'
 import { Alert, Card, Field } from '../components/ui'
 import { DataGate } from '../components/DataGate'
 import { OfflineNotice } from '../components/OfflineNotice'
-import { downloadJson } from '../lib/cache'
+import { clearCache, downloadJson } from '../lib/cache'
 import { addDaysISO, formatDate, todayISO } from '../lib/dates'
 import type { Settings } from '../types'
 
@@ -12,13 +12,14 @@ const CURRENCIES = ['GBP', 'EUR', 'USD', 'AUD', 'CAD', 'NZD', 'ZAR', 'CHF', 'SEK
 
 export default function SettingsPage() {
   const { data, saveSettings, refresh, offlineSnapshot } = useAppData()
-  const { session } = useSession()
-  const deviceKey = session?.user.id.slice(0, 8) ?? null
+  const { session, signOut } = useAuth()
 
   const [form, setForm] = useState<Settings>(data.settings)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [signingOut, setSigningOut] = useState(false)
+  const [signOutError, setSignOutError] = useState<string | null>(null)
 
   useEffect(() => {
     setForm(data.settings)
@@ -74,6 +75,18 @@ export default function SettingsPage() {
     }
   }
 
+  async function handleSignOut() {
+    setSignOutError(null)
+    setSigningOut(true)
+    try {
+      await signOut()
+      clearCache()
+    } catch (err) {
+      setSignOutError(err instanceof Error ? err.message : 'Could not sign out.')
+      setSigningOut(false)
+    }
+  }
+
   function handleExport() {
     downloadJson(`hair-tracker-${todayISO()}.json`, {
       exportedAt: new Date().toISOString(),
@@ -97,19 +110,28 @@ export default function SettingsPage() {
 
         <Card>
           <header className="card-head">
-            <h2>This device</h2>
+            <h2>Account</h2>
           </header>
           <p className="muted small">
-            There is no sign-in — the app opens straight into your record and remembers this
-            browser. That also means the data belongs to this browser: clearing site data, or
-            opening the app somewhere else, starts an empty record. Keep a JSON export somewhere
-            safe.
+            Signed in as <strong>{session?.user.email ?? 'your account'}</strong>. The record
+            belongs to this login, so signing in with the same email and password on another device
+            picks up where you left off.
           </p>
-          {deviceKey && (
-            <p className="muted small">
-              Device key <code>{deviceKey}</code> — the same key means the same data.
-            </p>
-          )}
+          {signOutError && <Alert>{signOutError}</Alert>}
+          <div className="row-actions">
+            <button
+              type="button"
+              className="button button--ghost"
+              onClick={() => void handleSignOut()}
+              disabled={signingOut}
+            >
+              {signingOut ? 'Signing out…' : 'Sign out'}
+            </button>
+          </div>
+          <p className="muted small">
+            Signing out clears the offline copy from this browser. Anything already saved to your
+            Supabase database stays there.
+          </p>
         </Card>
         <Card>
           <header className="card-head">

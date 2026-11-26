@@ -2,7 +2,6 @@
 
 A small and personal PWA for tracking hair-system fittings, re-fits and what they cost. It works out
 when the next replacement needs ordering, keeps a running cost picture, and stays readable offline.
-There is no sign-in screen.
 
 ## What it does
 
@@ -39,26 +38,39 @@ table is protected by row level security; never put the `service_role` key there
 
 If the env vars are missing the app shows a setup screen instead of a blank page.
 
-### No sign-in
+### Signing in
 
-The app is built for exactly one person, so there is no login form. On first load
-`src/state/SessionContext.tsx` mints a **silent anonymous Supabase session** and keeps it in the
-browser; subsequent loads reuse it. Nothing secret is compiled into the bundle — unlike hard-coded
-email/password credentials, which would be readable by anyone who views the deployed JavaScript.
+The app asks for an email address and password before it opens your record. `src/state/AuthContext.tsx`
+keeps the Supabase session in the browser and follows it across sign-in, sign-out, token refresh and
+the email-confirmation redirect; `src/pages/AuthPage.tsx` renders the form, which doubles as account
+creation. Nothing secret is compiled into the bundle — the anon key is public by design and every
+table is protected by row level security (`auth.uid() = user_id`).
 
-This requires anonymous sign-ins to be enabled on the project: *Authentication → Sign In /
-Providers → Anonymous sign-ins*. If they are off, the app shows a clear error with a retry button
-rather than a login form.
+**Creating the account:** open the app, choose *Create an account*, and pick any email and password
+(8 characters or more). Supabase has email confirmation on by default; when that is the case the app
+says so and asks you to open the link before signing in.
 
-Row level security still does its job: anonymous sessions get the `authenticated` role, so the
-`auth.uid() = user_id` policies apply exactly as before and rows stay private to that session.
+**Set the URLs first.** Confirmation and password-reset emails link back to whatever *Authentication
+→ URL Configuration* says. Set **Site URL** to the deployed address (for example
+`https://hair-app-blush.vercel.app`) and add `https://dave25uk.github.io/hair-app/` under **Redirect
+URLs**, otherwise the links point at `http://localhost:3000`.
 
-**The trade-off:** the data belongs to that browser. Clearing site data, or opening the app on
-another device, starts a new anonymous identity and therefore an empty record. Use **Settings →
-Export JSON** for a backup. A `hair-app.device.v1` marker in `localStorage` lets the app tell a
-genuine first visit apart from a browser whose session was wiped: in that case it explains what
-happened and offers a deliberate *Start a new record* button instead of silently opening an empty
-record.
+**The trade-off:** the record belongs to that account, so the same email and password opens the same
+data on any device — but the password is the only way in. Keep a **Settings → Export JSON** copy as a
+backup. Signing out clears the offline snapshot from the browser; the rows in Supabase are untouched.
+
+Anonymous sign-ins are no longer used and can be switched off under *Authentication → Sign In /
+Providers → Anonymous sign-ins*.
+
+If you logged data against the earlier anonymous identity, those rows still carry the old `user_id`
+and stay hidden. To move them to your new account, run this once with both ids (from *Authentication
+→ Users* and the `user_id` column of the tables):
+
+```sql
+update public.hair_settings set user_id = '<new-user-id>' where user_id = '<old-user-id>';
+update public.hair_fittings set user_id = '<new-user-id>' where user_id = '<old-user-id>';
+update public.hair_costs    set user_id = '<new-user-id>' where user_id = '<old-user-id>';
+```
 
 ### Database
 

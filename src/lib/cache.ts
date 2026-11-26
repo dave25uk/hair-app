@@ -34,6 +34,15 @@ export function loadCache(userId: string): CachedData | null {
   }
 }
 
+/** Drops the offline copy, so the next account does not inherit it. */
+export function clearCache(): void {
+  try {
+    localStorage.removeItem(CACHE_KEY)
+  } catch {
+    // ignore
+  }
+}
+
 export function downloadJson(filename: string, payload: unknown): void {
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
   const url = URL.createObjectURL(blob)

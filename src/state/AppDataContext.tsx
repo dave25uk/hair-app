@@ -11,7 +11,7 @@ import type { AppData, Fitting, Settings } from '../types'
 import { DEFAULT_SETTINGS } from '../types'
 import * as api from '../lib/api'
 import { loadCache, saveCache } from '../lib/cache'
-import { useSession } from './SessionContext'
+import { useAuth } from './AuthContext'
 
 type Status = 'loading' | 'ready' | 'error'
 
@@ -39,7 +39,7 @@ function errorMessage(err: unknown): string {
 }
 
 export function AppDataProvider({ children }: { children: ReactNode }) {
-  const { session } = useSession()
+  const { session } = useAuth()
   const userId = session?.user.id ?? null
 
   const [data, setData] = useState<AppData>({
@@ -86,7 +86,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<AppDataContextValue>(() => {
     const guard = () => {
-      if (!userId) throw new Error('This device has not opened a session yet. Reload to reconnect.')
+      if (!userId) throw new Error('You are signed out. Sign in again to continue.')
       if (offlineSnapshot) {
         throw new Error('You are viewing a saved offline copy. Reconnect to make changes.')
       }
