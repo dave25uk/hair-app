@@ -43,6 +43,8 @@ jobs:
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          # A Pages project site lives under /hair-app/; other hosts use the root.
+          VITE_BASE: /hair-app/
 
       # Hash routing covers deep links, but a 404 fallback keeps Pages happy
       # if anything ever requests a real path.

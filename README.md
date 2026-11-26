@@ -90,9 +90,13 @@ both RPCs raise `Not authenticated` when called without a session.
 
 ## Deploying
 
-`.github/workflows/deploy.yml` builds and publishes to GitHub Pages on every push to `main`. The
-build is served from `/hair-app/` (see `BASE` in `vite.config.ts`) — change that if you fork under a
-different path or use a custom domain.
+`base` comes from `VITE_BASE`, normalised in `vite.config.ts`, and defaults to `/`. That default is
+right for Vercel, Netlify or a custom domain at the root; the Pages workflow passes
+`VITE_BASE=/hair-app/` because a project site lives under the repository name. Getting it wrong
+looks exactly like a blank page — `index.html` loads, then its script and stylesheet 404, leaving
+`#root` empty.
+
+`.github/workflows/deploy.yml` builds and publishes to GitHub Pages on every push to `main`.
 
 Add both values as repository secrets before the first run:
 
@@ -113,6 +117,20 @@ not the default `GITHUB_TOKEN`.
 
 A step before the build checks that both secrets are present, so a missing one fails the run with a
 named error instead of quietly publishing the "Almost there" setup screen.
+
+### Vercel
+
+Import the repository on Vercel — framework preset **Vite**, build `npm run build`, output `dist` —
+and add the same two Supabase variables under *Settings → Environment Variables* for Production and
+Preview. Leave `VITE_BASE` unset: the app is served from the domain root there.
+
+`vercel.json` only sets cache headers: hashed `/assets/*` are immutable, `sw.js` is always
+revalidated so a new service worker can take over. There is no rewrite rule because routing is
+hash-based.
+
+If a host ever shows a blank page, the base is the first suspect: open the console and look at the
+404s. `/assets/…` failing means the build expects the root; `/hair-app/assets/…` failing means
+`VITE_BASE` was baked in where it should not have been.
 
 ## Notes
 
