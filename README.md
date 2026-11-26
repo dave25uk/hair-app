@@ -93,13 +93,14 @@ both RPCs raise `Not authenticated` when called without a session.
 
 `supabase/backfill/hair-xlsx-fittings.sql` loads the history from `HAIR.xlsx` (column A = date,
 B `Y` removed, C `Y` re-fitted, D `Y` new system) as 48 sessions: 6 new systems, 42 re-fits, the
-last one still open. Change the email on the marked line to the account you sign in with, then
-paste the file into the SQL editor.
+last one still open. It runs as four numbered steps — run STEP 0 to see the account ids, then
+replace the three `<<< OWNER >>>` placeholders with yours and run the rest.
 
-It is deliberately not a migration — it writes one person's history, so it should not ship with
-`supabase db push`. It refuses to run on an account that already has fittings, and it replaces
-only the rows it created (`comments = 'Backfilled from HAIR.xlsx'`), so it is safe to re-run after
-correcting a date.
+Every step reports its own row count, so a step that writes nothing says so (`DELETE 0`, 0 rows
+returned) instead of passing silently. It is deliberately not a migration — it writes one person's
+history, so it should not ship with `supabase db push`. It only ever replaces rows it created
+(`comments = 'Backfilled from HAIR.xlsx'`), so re-running after correcting a date is safe.
+
 
 ## Scripts
 

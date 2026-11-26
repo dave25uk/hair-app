@@ -4,11 +4,14 @@
 -- Column A = date, B = 'Y' system removed, C = 'Y' system re-fitted,
 -- D = 'Y' new system installed. One row per event, oldest first.
 --
--- How to run
---   1. Change the email on the line marked <<< CHANGE ME.
---   2. Paste the whole file into the Supabase SQL editor and run it.
---   3. Reload the app. You should see 48 fittings: 6 new systems, 42 re-fits,
---      the most recent (2 Oct 2026) still open.
+-- Run the steps in order. Each one reports what it did, so a step that writes
+-- nothing is visible in the results pane instead of failing quietly:
+--
+--   STEP 0  read-only: every account, and how many fittings it already holds.
+--   STEP 1  replace <<< OWNER >>> (3 places) with an owner_id from step 0.
+--   STEP 2  delete rows a previous run created          -> "DELETE 0"
+--   STEP 3  insert the 48 sessions                      -> 48 rows returned
+--   STEP 4  totals: 48 fittings, 6 new systems, 1 open  -> one row
 --
 -- How the sheet was converted
 --   * B=Y closes the session that is currently on, on that date.
@@ -25,35 +28,41 @@
 -- history, so it should not run as part of `supabase db push`.
 -- =============================================================================
 
--- The account to fill. <<< CHANGE ME >>>
-set hair_backfill.email = 'you@example.com';
+-- ---------------------------------------------------------------------------
+-- STEP 0 — read-only. Every auth account, with what it already holds. The
+-- account you sign in with should show all_rows = 0; if it shows rows, those
+-- are fittings logged in the app and they need deleting before a back-fill
+-- (see the note at the bottom).
+-- ---------------------------------------------------------------------------
+select u.id                as owner_id,
+       u.email,
+       u.is_anonymous,
+       u.created_at,
+       u.last_sign_in_at,
+       count(f.id)                                                         as all_rows,
+       count(f.id) filter (where f.comments = 'Backfilled from HAIR.xlsx')  as backfilled_rows,
+       count(f.id) filter (where f.removed_on is null)                     as open_rows
+from auth.users as u
+left join public.hair_fittings as f on f.user_id = u.id
+group by u.id, u.email, u.is_anonymous, u.created_at, u.last_sign_in_at
+order by u.created_at;
 
-do $$
-declare
-  v_email text := current_setting('hair_backfill.email');
-  v_user uuid;
-  v_count integer;
-begin
-  select id into v_user from auth.users where lower(email) = lower(v_email);
-  if v_user is null then
-    raise exception 'No Supabase user matches %', v_email;
-  end if;
+-- ---------------------------------------------------------------------------
+-- STEP 1 — replace all three  <<< OWNER >>>  placeholders with the owner_id
+-- you want to fill. Leaving one unreplaced fails loudly (invalid uuid).
+-- ---------------------------------------------------------------------------
 
-  -- Idempotent: drop only rows a previous run of *this* script created.
-  delete from public.hair_fittings
-   where user_id = v_user
-     and comments = 'Backfilled from HAIR.xlsx';
+-- STEP 2 — clears rows a previous run of this script created, so re-running
+-- after fixing a date is safe. Expect "DELETE 0" the first time.
+delete from public.hair_fittings
+ where user_id = '<<< OWNER >>>'::uuid
+   and comments = 'Backfilled from HAIR.xlsx';
 
-  select count(*) into v_count from public.hair_fittings where user_id = v_user;
-  if v_count > 0 then
-    raise exception
-      'That account already has % fitting(s). This back-fill expects an empty record — delete them in the app first, then run this again.',
-      v_count;
-  end if;
-
-  insert into public.hair_fittings (user_id, kind, fitted_on, removed_on, comments)
-  select v_user, s.kind, s.fitted_on, s.removed_on, 'Backfilled from HAIR.xlsx'
-  from (values
+-- STEP 3 — the 53 dated sheet rows become 48 sessions. The results pane should
+-- come back with 48 rows; anything less means nothing was written.
+insert into public.hair_fittings (user_id, kind, fitted_on, removed_on, comments)
+select '<<< OWNER >>>'::uuid, s.kind, s.fitted_on, s.removed_on, 'Backfilled from HAIR.xlsx'
+from (values
     ('new-system', date '2025-01-20', date '2025-02-02'),
     ('refit',      date '2025-02-02', date '2025-02-12'),
     ('refit',      date '2025-02-12', date '2025-02-24'),
@@ -102,18 +111,31 @@ begin
     ('refit',      date '2026-08-31', date '2026-09-17'),
     ('refit',      date '2026-09-17', date '2026-10-02'),
     ('refit',      date '2026-10-02', null)
-  ) as s (kind, fitted_on, removed_on);
-end $$;
+  ) as s (kind, fitted_on, removed_on)
+returning kind, fitted_on, removed_on, comments;
 
--- What the app will now show.
-select count(*)                                        as fittings,
-       count(*) filter (where kind = 'new-system')      as new_systems,
-       count(*) filter (where kind = 'refit')           as refits,
-       count(*) filter (where removed_on is null)       as open_sessions,
-       min(fitted_on)                                   as first_fitted,
-       max(fitted_on)                                   as last_fitted
+-- ---------------------------------------------------------------------------
+-- STEP 4 — what the app will now show. Expect: 48 fittings, 6 new systems,
+-- 42 re-fits, 1 open, 2025-01-20 .. 2026-10-02.
+-- ---------------------------------------------------------------------------
+select count(*)                                            as fittings,
+       count(*) filter (where kind = 'new-system')          as new_systems,
+       count(*) filter (where kind = 'refit')               as refits,
+       count(*) filter (where removed_on is null)           as open_sessions,
+       min(fitted_on)                                       as first_fitted,
+       max(fitted_on)                                       as last_fitted,
+       count(*) filter (where comments = 'Backfilled from HAIR.xlsx') as backfilled
 from public.hair_fittings
-where user_id = (
-  select id from auth.users where lower(email) = lower(current_setting('hair_backfill.email'))
-);
+where user_id = '<<< OWNER >>>'::uuid;
+
+-- ---------------------------------------------------------------------------
+-- If step 0 showed rows for the account you are filling (all_rows > 0), those
+-- came from logging fittings in the app. Deal with them before running step 3,
+-- otherwise the history interleaves or the one-open-session index rejects the
+-- insert. Either delete them in the app, or clear the whole account with:
+--
+--   delete from public.hair_fittings where user_id = '<your owner id>'::uuid;
+--
+-- ---------------------------------------------------------------------------
+
 
