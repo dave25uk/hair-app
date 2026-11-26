@@ -89,6 +89,18 @@ CLI). It creates:
 RLS is enabled on all three tables with a single "owner" policy each (`auth.uid() = user_id`), and
 both RPCs raise `Not authenticated` when called without a session.
 
+### Back-filling old fittings
+
+`supabase/backfill/hair-xlsx-fittings.sql` loads the history from `HAIR.xlsx` (column A = date,
+B `Y` removed, C `Y` re-fitted, D `Y` new system) as 48 sessions: 6 new systems, 42 re-fits, the
+last one still open. Change the email on the marked line to the account you sign in with, then
+paste the file into the SQL editor.
+
+It is deliberately not a migration — it writes one person's history, so it should not ship with
+`supabase db push`. It refuses to run on an account that already has fittings, and it replaces
+only the rows it created (`comments = 'Backfilled from HAIR.xlsx'`), so it is safe to re-run after
+correcting a date.
+
 ## Scripts
 
 | Command | What it does |
