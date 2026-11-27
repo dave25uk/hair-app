@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { CostEntry, Fitting, Settings } from '../types'
 import {
   availableYears,
+  averageMonthlyCost,
   computeSchedule,
   costPerWornDay,
   costsByCategory,
@@ -173,5 +174,26 @@ describe('costs', () => {
   it('works out cost per day worn', () => {
     expect(costPerWornDay(63500, 87)).toBe(730)
     expect(costPerWornDay(63500, 0)).toBeNull()
+  })
+
+  it('averages spend across every month since the first cost', () => {
+    // Earliest cost is Dec 2025; today is Mar 2026 -> Dec, Jan, Feb, Mar = 4 months.
+    const average = averageMonthlyCost(costs, '2026-03-28')
+    expect(average).not.toBeNull()
+    expect(average?.months).toBe(4)
+    expect(average?.from).toBe('2025-12-01')
+    expect(average?.perMonthMinor).toBe(15875) // 63500 / 4
+  })
+
+  it('uses the current month only when the first cost is this month', () => {
+    expect(averageMonthlyCost([cost('2026-03-05', 'system', 10000)], '2026-03-28')).toEqual({
+      perMonthMinor: 10000,
+      months: 1,
+      from: '2026-03-01',
+    })
+  })
+
+  it('reports nothing to average when no costs are logged', () => {
+    expect(averageMonthlyCost([], '2026-03-28')).toBeNull()
   })
 })

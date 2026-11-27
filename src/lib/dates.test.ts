@@ -8,6 +8,7 @@ import {
   formatMoney,
   formatMoneyInput,
   isValidISODate,
+  monthsInclusive,
   parseMoneyToMinor,
 } from './dates'
 
@@ -45,6 +46,23 @@ describe('addDaysISO / daysBetween', () => {
     expect(daysBetween('2026-11-26', '2026-11-29')).toBe(3)
     expect(daysBetween('2026-11-29', '2026-11-26')).toBe(-3)
     expect(daysBetween('2026-11-26', '2026-11-26')).toBe(0)
+  })
+})
+
+describe('monthsInclusive', () => {
+  it('counts a month once both dates fall inside it', () => {
+    expect(monthsInclusive('2026-11-01', '2026-11-26')).toBe(1)
+    expect(monthsInclusive('2026-11-30', '2026-11-01')).toBe(1)
+  })
+
+  it('counts both end months', () => {
+    expect(monthsInclusive('2025-12-01', '2026-03-28')).toBe(4)
+    expect(monthsInclusive('2026-01-01', '2026-01-31')).toBe(1)
+    expect(monthsInclusive('2026-01-15', '2027-01-02')).toBe(13)
+  })
+
+  it('never reports less than one month', () => {
+    expect(monthsInclusive('2026-05-01', '2026-03-01')).toBe(1)
   })
 })
 

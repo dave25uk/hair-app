@@ -61,6 +61,71 @@ describe('server render smoke', () => {
     expect(usableSession(real)).toBe(real)
   })
 
+  it('renders the re-fit hero and the current-system card with real data', async () => {
+    vi.resetModules()
+    vi.doMock('./state/AppDataContext', () => ({
+      useAppData: () => ({
+        status: 'ready',
+        error: null,
+        refresh: async () => {},
+        offlineSnapshot: false,
+        snapshotSavedAt: null,
+        data: {
+          settings: {
+            refitIntervalDays: 28,
+            newSystemIntervalDays: 120,
+            stylistLeadDays: 14,
+            orderLeadDays: 21,
+            currency: 'GBP',
+          },
+          fittings: [
+            {
+              id: 'f1',
+              kind: 'new-system',
+              fittedOn: '2026-01-20',
+              removedOn: null,
+              comments: '',
+              createdAt: '2026-01-20T09:00:00.000Z',
+            },
+          ],
+          costs: [
+            {
+              id: 'c1',
+              spentOn: '2026-01-20',
+              category: 'system',
+              amountMinor: 90000,
+              note: '',
+              createdAt: '2026-01-20T09:00:00.000Z',
+            },
+          ],
+        },
+      }),
+    }))
+
+    const { default: HomePage } = await import('./pages/HomePage')
+    const html = renderToStaticMarkup(createElement(HomePage, { onNavigate: () => {} }))
+
+    // Hero: the re-fit countdown plus the session details it now owns.
+    expect(html).toContain('hero-stats')
+    expect(html).toContain('On since')
+    expect(html).toContain('Days worn')
+    expect(html).toContain('Re-fit due')
+
+    // Current-system card: the replacement dates that used to live in the hero.
+    expect(html).toContain('Current system')
+    expect(html).toContain('New system due')
+    expect(html).toContain('Order by')
+    expect(html).toContain('Stylist by')
+
+    // At a glance: the new monthly average, without the removed hints.
+    expect(html).toContain('Average monthly cost')
+    expect(html).toContain('since Jan 2026')
+    expect(html).not.toContain('sessions logged')
+    expect(html).not.toContain('Currently wearing')
+
+    vi.doUnmock('./state/AppDataContext')
+  }, 30_000)
+
   it('renders shared building blocks', () => {
     expect(renderToStaticMarkup(createElement(Spinner, { label: 'Loading' }))).toContain(
       'spinner-ring',

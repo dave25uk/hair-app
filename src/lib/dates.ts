@@ -32,6 +32,17 @@ export function daysBetween(fromISO: string, toISO: string): number {
   return differenceInCalendarDays(toDate(toISO), toDate(fromISO))
 }
 
+/**
+ * Whole calendar months from `startISO` to `endISO`, counting both ends:
+ * two dates in the same month span one month. Never returns less than 1.
+ */
+export function monthsInclusive(startISO: string, endISO: string): number {
+  const start = toDate(startISO)
+  const end = toDate(endISO)
+  const months = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1
+  return months > 0 ? months : 1
+}
+
 export function formatDate(iso: string, pattern = 'd MMM yyyy'): string {
   return format(toDate(iso), pattern, { locale: enGB })
 }

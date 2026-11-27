@@ -8,6 +8,7 @@ import { FittingModal } from '../components/FittingModal'
 import { RemoveModal } from '../components/RemoveModal'
 import {
   KIND_LABELS,
+  averageMonthlyCost,
   averageWearDays,
   computeSchedule,
   costPerWornDay,
@@ -16,6 +17,7 @@ import {
 } from '../lib/calc'
 import {
   countdownLabel,
+  daysBetween,
   formatDate,
   formatDays,
   formatMoney,
@@ -37,6 +39,64 @@ interface HeroCopy {
   tone: Tone
 }
 
+/** The hero is about the session on your head: how long it has been on and when it's due a re-fit. */
+function describeRefit(
+  schedule: Schedule,
+  refitIntervalDays: number,
+  todayIso: string,
+): HeroCopy {
+  const current = schedule.current
+  const due = schedule.refitDueOn
+
+  if (!current || !due) {
+    return {
+      eyebrow: 'Nothing on',
+      title: 'No system on right now',
+      body: `Mark a system as fitted to start the wear clock. Re-fits fall due every ${refitIntervalDays} days while it's on.`,
+      tone: 'accent',
+    }
+  }
+
+  const daysToRefit = daysBetween(todayIso, due)
+  const worn = formatDays(schedule.currentDaysWorn)
+  const onSince = formatDate(current.fittedOn)
+
+  if (daysToRefit < 0) {
+    return {
+      eyebrow: 'Re-fit overdue',
+      title: `Re-fit was due ${formatDate(due)}`,
+      body: `${worn} worn since ${onSince}, so it slipped by ${formatDays(-daysToRefit)}. Book the stylist and log the re-fit once it's back on.`,
+      tone: 'danger',
+    }
+  }
+
+  if (daysToRefit === 0) {
+    return {
+      eyebrow: 'Re-fit due today',
+      title: 'Re-fit due today',
+      body: `${worn} worn since ${onSince}. Log the re-fit once it's back on to restart the clock.`,
+      tone: 'warn',
+    }
+  }
+
+  if (daysToRefit <= 7) {
+    return {
+      eyebrow: 'Re-fit soon',
+      title: `Re-fit due ${formatDate(due)}`,
+      body: `${countdownLabel(due, todayIso)} — ${worn} worn since ${onSince}. Get it booked in with your stylist.`,
+      tone: 'warn',
+    }
+  }
+
+  return {
+    eyebrow: 'Re-fit due',
+    title: `Next re-fit ${formatDate(due)}`,
+    body: `${countdownLabel(due, todayIso)} — ${worn} worn so far since ${onSince}.`,
+    tone: 'ok',
+  }
+}
+
+/** The current-system card is about the system itself: when it was fitted and when it must be replaced. */
 function describeSchedule(schedule: Schedule, todayIso: string): HeroCopy {
   if (schedule.phase === 'no-system') {
     return {
@@ -92,7 +152,8 @@ export default function HomePage({ onNavigate }: { onNavigate: (tab: Tab) => voi
   const currency = data.settings.currency
   const schedule = computeSchedule(data.fittings, data.settings, today)
   const current = schedule.current
-  const hero = describeSchedule(schedule, today)
+  const hero = describeRefit(schedule, data.settings.refitIntervalDays, today)
+  const systemCopy = describeSchedule(schedule, today)
 
   const year = isoYear(today)
   const yearEntries = data.costs.filter((cost) => isoYear(cost.spentOn) === year)
@@ -101,6 +162,7 @@ export default function HomePage({ onNavigate }: { onNavigate: (tab: Tab) => voi
   const wornDays = totalDaysWorn(data.fittings, today)
   const perDay = costPerWornDay(allSpend, wornDays)
   const averageSession = averageWearDays(data.fittings, today)
+  const monthlyCost = averageMonthlyCost(data.costs, today)
 
   const steps: Step[] = []
   if (schedule.orderByOn) {
@@ -143,9 +205,29 @@ export default function HomePage({ onNavigate }: { onNavigate: (tab: Tab) => voi
         <OfflineNotice />
 
         <Card className={`hero hero--${hero.tone}`}>
-          <span className="hero-eyebrow">{hero.eyebrow}</span>
+          <div className="hero-head">
+            <span className="hero-eyebrow">{hero.eyebrow}</span>
+            {current && (
+              <Badge tone={current.kind === 'new-system' ? 'accent' : 'neutral'}>
+                {KIND_LABELS[current.kind]}
+              </Badge>
+            )}
+          </div>
           <h1 className="hero-title">{hero.title}</h1>
           <p className="hero-body">{hero.body}</p>
+          {current && schedule.refitDueOn && (
+            <div className="stat-row hero-stats">
+              <StatTile label="On since" value={formatDate(current.fittedOn)} />
+              <StatTile label="Days worn" value={schedule.currentDaysWorn} hint="Including today" />
+              <StatTile
+                label="Re-fit due"
+                value={formatDate(schedule.refitDueOn)}
+                hint={countdownLabel(schedule.refitDueOn, today)}
+                tone={schedule.refitOverdue ? 'danger' : undefined}
+              />
+            </div>
+          )}
+          {current?.comments && <p className="note">{current.comments}</p>}
           <div className="hero-actions">
             <button
               type="button"
@@ -223,42 +305,44 @@ export default function HomePage({ onNavigate }: { onNavigate: (tab: Tab) => voi
             </Card>
             <Card>
               <header className="card-head">
-                <h2>{current ? 'Currently wearing' : 'No system on'}</h2>
-                {current && (
-                  <Badge tone={current.kind === 'new-system' ? 'accent' : 'neutral'}>
-                    {KIND_LABELS[current.kind]}
-                  </Badge>
-                )}
+                <h2>{schedule.systemFitting ? 'Current system' : 'No system logged'}</h2>
+                <span className="muted small">{current ? 'On now' : 'Off right now'}</span>
               </header>
 
-              {current ? (
-                <>
+              <div className={`card-lead card-lead--${systemCopy.tone}`}>
+                <span className="card-lead-eyebrow">{systemCopy.eyebrow}</span>
+                <p className="card-lead-title">{systemCopy.title}</p>
+                <p className="card-lead-body">{systemCopy.body}</p>
+              </div>
+
+              {schedule.systemFitting &&
+                schedule.systemDueOn &&
+                schedule.orderByOn &&
+                schedule.stylistByOn && (
                   <div className="stat-row">
-                    <StatTile label="On since" value={formatDate(current.fittedOn)} />
                     <StatTile
-                      label="Days worn"
-                      value={schedule.currentDaysWorn}
-                      hint="Including today"
+                      label="Fitted"
+                      value={formatDate(schedule.systemFitting.fittedOn)}
+                      hint={countdownLabel(schedule.systemFitting.fittedOn, today)}
                     />
                     <StatTile
-                      label="Re-fit due"
-                      value={schedule.refitDueOn ? formatDate(schedule.refitDueOn) : '—'}
-                      hint={
-                        schedule.refitDueOn
-                          ? countdownLabel(schedule.refitDueOn, today)
-                          : undefined
-                      }
-                      tone={schedule.refitOverdue ? 'danger' : undefined}
+                      label="New system due"
+                      value={formatDate(schedule.systemDueOn)}
+                      hint={countdownLabel(schedule.systemDueOn, today)}
+                      tone={schedule.phase === 'due' ? 'danger' : undefined}
+                    />
+                    <StatTile
+                      label="Order by"
+                      value={formatDate(schedule.orderByOn)}
+                      hint={countdownLabel(schedule.orderByOn, today)}
+                    />
+                    <StatTile
+                      label="Stylist by"
+                      value={formatDate(schedule.stylistByOn)}
+                      hint={countdownLabel(schedule.stylistByOn, today)}
                     />
                   </div>
-                  {current.comments && <p className="note">{current.comments}</p>}
-                </>
-              ) : (
-                <p className="muted">
-                  Nothing is logged as on right now. Days without a system stay out of your wear
-                  totals.
-                </p>
-              )}
+                )}
             </Card>
 
             <Card>
@@ -277,12 +361,19 @@ export default function HomePage({ onNavigate }: { onNavigate: (tab: Tab) => voi
                 <StatTile
                   label="Cost per day worn"
                   value={perDay === null ? '—' : formatMoney(perDay, currency)}
-                  hint={`${formatDays(wornDays)} so far`}
                 />
                 <StatTile
                   label="Average session"
                   value={averageSession === null ? '—' : formatDays(averageSession)}
-                  hint={`${data.fittings.length} sessions logged`}
+                />
+                <StatTile
+                  label="Average monthly cost"
+                  value={monthlyCost === null ? '—' : formatMoney(monthlyCost.perMonthMinor, currency)}
+                  hint={
+                    monthlyCost === null
+                      ? undefined
+                      : `since ${formatDate(monthlyCost.from, 'MMM yyyy')}`
+                  }
                 />
               </div>
             </Card>

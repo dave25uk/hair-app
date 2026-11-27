@@ -1,5 +1,5 @@
 import type { CostCategory, CostEntry, Fitting, FittingKind, Settings } from '../types'
-import { addDaysISO, daysBetween, daysInclusive } from './dates'
+import { addDaysISO, daysBetween, daysInclusive, monthsInclusive } from './dates'
 
 export const COST_CATEGORIES = ['system', 'styling', 'fitting'] as const
 
@@ -201,4 +201,36 @@ export function availableYears(costs: CostEntry[]): number[] {
 export function costPerWornDay(totalCostMinor: number, wornDays: number): number | null {
   if (wornDays <= 0) return null
   return Math.round(totalCostMinor / wornDays)
+}
+
+export interface MonthlyAverage {
+  /** Average spend per calendar month, in minor units (rounded). */
+  perMonthMinor: number
+  /** Calendar months covered, including months with no spend at all. */
+  months: number
+  /** First day of the earliest month that has a cost, for the "since ..." hint. */
+  from: string
+}
+
+/**
+ * Average spend per calendar month since the first recorded cost.
+ *
+ * Every month counts, so the quiet months where nothing was bought pull the
+ * average down — that keeps the figure honest instead of only averaging the
+ * months that happened to have a receipt.
+ */
+export function averageMonthlyCost(costs: CostEntry[], todayIso: string): MonthlyAverage | null {
+  if (costs.length === 0) return null
+
+  let earliest = costs[0].spentOn
+  for (const cost of costs) {
+    if (cost.spentOn < earliest) earliest = cost.spentOn
+  }
+
+  const months = monthsInclusive(earliest, todayIso)
+  return {
+    perMonthMinor: Math.round(sumCosts(costs) / months),
+    months,
+    from: `${earliest.slice(0, 7)}-01`,
+  }
 }

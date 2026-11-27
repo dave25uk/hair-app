@@ -345,6 +345,52 @@ button {
   letter-spacing: 0.005em;
 }
 
+/* Lead paragraph inside a card: a quieter version of the hero copy. */
+.card-lead {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.card-lead-eyebrow {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.card-lead-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.08rem;
+  font-weight: 650;
+  line-height: 1.2;
+  text-wrap: balance;
+}
+
+.card-lead-body {
+  margin: 0;
+  font-size: 0.86rem;
+  color: var(--ink-soft);
+}
+
+.card-lead--ok .card-lead-eyebrow {
+  color: var(--ok);
+}
+
+.card-lead--warn .card-lead-eyebrow {
+  color: var(--warn);
+}
+
+.card-lead--danger .card-lead-eyebrow {
+  color: var(--danger);
+}
+
+.card-lead--accent .card-lead-eyebrow {
+  color: var(--accent);
+}
+
 .hero {
   position: relative;
   overflow: hidden;
@@ -387,6 +433,13 @@ button {
   background: linear-gradient(155deg, var(--accent-soft), var(--surface) 72%);
 }
 
+.hero-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
 .hero-eyebrow {
   font-size: 0.7rem;
   font-weight: 700;
@@ -413,6 +466,10 @@ button {
   flex-wrap: wrap;
   gap: 0.5rem;
   margin-top: 0.35rem;
+}
+
+.hero-stats {
+  margin-top: 0.55rem;
 }
 
 /* ---------------------------------------------------------------
